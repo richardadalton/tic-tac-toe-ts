@@ -2,7 +2,5 @@ services:
   web:
     build: .
     ports:
-      - "9000:9000"
-    environment:
-      - PORT=9000
+      - "8001:8001"
 
