@@ -1,16 +1,19 @@
-FROM python:3.12-slim
+FROM node:22-alpine AS build
 
 WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
 
-# Install dependencies first (separate layer so it's cached on re-deploys)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+FROM node:22-alpine
 
-# Copy application source
-COPY . .
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
+COPY public ./public
 
-EXPOSE 8001
-
-# Use gunicorn for production — Flask's dev server is not used
-CMD ["gunicorn", "--bind", "0.0.0.0:8001", "--workers", "2", "--timeout", "30", "tictactoe:app"]
-
+EXPOSE 9000
+CMD ["node", "dist/server.js"]

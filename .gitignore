@@ -1,6 +1,7 @@
+node_modules/
+dist/
+coverage/
 .idea
-scratchpad.txt
-__pycache__
 .DS_Store
-.venv
+scratchpad.txt
 deploy.sh

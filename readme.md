@@ -3,6 +3,9 @@
 A browser-based Tic-Tac-Toe game built as an exercise in genuine
 [HATEOAS](https://en.wikipedia.org/wiki/HATEOAS) REST API design.
 
+Written in TypeScript with Express. (This is a port of an earlier Python/Flask
+version.)
+
 ---
 
 ## Table of Contents
@@ -27,23 +30,23 @@ The system is split into three distinct layers.
 ```
 ┌─────────────────────────────────────────┐
 │              Browser (UI)               │
-│  site/index.html  +  site/static/       │
+│  public/index.html  +  public/static/   │
 │  SVG board, player-select dropdowns     │
 │  Follows links from API — no URL logic  │
 └────────────────────┬────────────────────┘
-                     │ HTTP GET (XHR)
+                     │ HTTP GET (fetch)
 ┌────────────────────▼────────────────────┐
-│            Flask API Server             │
-│  tictactoe.py                           │
+│           Express API Server            │
+│  src/app.ts  (src/server.ts boots it)   │
 │  /api/new    /api/move                  │
 │  Stateless — all state lives in URLs    │
 └────────────────────┬────────────────────┘
                      │ function calls
 ┌────────────────────▼────────────────────┐
 │           AI / Game Logic               │
-│  utils.py            — core rules       │
-│  tictactoe_minimax.py — perfect play    │
-│  tictactoe_random.py  — random moves    │
+│  src/game/utils.ts  — core rules        │
+│  src/ai/minimax.ts  — perfect play      │
+│  src/ai/random.ts   — random moves      │
 └─────────────────────────────────────────┘
 ```
 
@@ -186,27 +189,31 @@ the game continues, the response advances the turn to the other player.
 | Status | Reason |
 |---|---|
 | `400` | Missing `board` or `player` parameter |
-| `400` | Unknown algorithm name supplied for `x_player` / `o_player` |
+
+An unrecognised `x_player` / `o_player` value is treated as a human player.
 
 ---
 
 ### `GET /`
 
-Serves the static single-page frontend (`site/index.html`).
+Serves the static single-page frontend (`public/index.html`).
 
 ---
 
 ## AI Algorithms
 
-All AI implementations extend the abstract base class `TicTacToeAlgorithm`,
-which enforces a single interface:
+All AI implementations implement the `TicTacToeAlgorithm` interface
+(`src/ai/algorithm.ts`):
 
-```python
-def get_move(self, board: list, player: int) -> int:
-    # Returns the index (0-8) of the chosen cell
+```ts
+interface TicTacToeAlgorithm {
+  // Returns the index (0-8) of the chosen cell, or null if the board is full
+  getMove(board: Board, player: Player): number | null
+}
 ```
 
-Internally, the board is a Python list of 9 integers using the constants:
+Internally, the board is a 9-element tuple of integers using the constants
+in `src/constants.ts`:
 
 | Constant | Value | Meaning |
 |---|---|---|
@@ -217,7 +224,7 @@ Internally, the board is a Python list of 9 integers using the constants:
 This integer representation means a win can be detected by summing any line:
 `+3` is an X win, `-3` is an O win.
 
-### Minimax (`TicTacToeMiniMax`)
+### Minimax (`Minimax`)
 
 Implements the [Minimax algorithm](https://en.wikipedia.org/wiki/Minimax)
 to play perfectly. It recursively evaluates every possible game continuation
@@ -228,7 +235,7 @@ always draws.
 When multiple moves score equally (which is common early in the game), one is
 chosen at random — this prevents the AI from always playing the same game.
 
-### Random (`TicTacToeRandom`)
+### Random (`Random`)
 
 Selects a move uniformly at random from the available empty cells. Useful for
 testing and as the weaker side in AI-vs-AI matches.
@@ -237,20 +244,20 @@ testing and as the weaker side in AI-vs-AI matches.
 
 ## Frontend
 
-The UI is a static single-page application served from `site/`.
+The UI is a static single-page application served from `public/`.
 
-- **`site/index.html`** — structure and SVG piece/grid definitions
-- **`site/static/site.js`** — all game logic
-- **`site/static/style.css`** — styling
+- **`public/index.html`** — structure and SVG piece/grid definitions
+- **`public/static/site.js`** — all game logic (a plain ES module, no build step)
+- **`public/static/style.css`** — styling
 
 The SVG board uses `<defs>` to define reusable `x-piece`, `o-piece`, `blank`,
 and `grid` symbols. Each cell is rendered as a `<use>` element positioned on a
 100×100 grid within a 300×300 viewBox, so the board scales to any screen size.
 
-`site.js` has one job: follow links. Its main function `on_receive_game` parses
+`site.js` has one job: follow links. Its main function `renderGame` takes
 a response, renders the board, and decides what to do next:
 
-- If `links.moves` is populated, attach `onclick` handlers so the human can
+- If `links.moves` is populated, attach click handlers so the human can
   click a cell.
 - If `links.ai_move` is present, suppress human clicks and schedule an
   automatic follow after a 1-second delay.
@@ -284,24 +291,36 @@ sequence of moves.
 
 ## Installation
 
-Clone the repository and set up a virtual environment:
+Requires Node.js 22+.
 
 ```bash
-git clone https://github.com/richardadalton/tic-tac-toe.git
-cd tic-tac-toe
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+git clone https://github.com/richardadalton/tic-tac-toe-ts.git
+cd tic-tac-toe-ts
+npm install
 ```
 
 ---
 
 ## Running Locally
 
-### With Python directly
+### Development (auto-reload)
 
 ```bash
-python tictactoe.py
+npm run dev
+```
+
+### Production build
+
+```bash
+npm run build
+npm start
+```
+
+Both serve the app on **port 9000** by default (`http://localhost:9000`).
+Override it with the `PORT` environment variable:
+
+```bash
+PORT=8080 npm start
 ```
 
 ### With Docker Compose
@@ -310,26 +329,21 @@ python tictactoe.py
 docker compose up --build
 ```
 
-Both options serve the app on **port 9000**, reachable at:
-
-```
-http://localhost:9000
-http://<your-local-ip>:9000
-```
-
-The port can be overridden with an environment variable (Python only):
-
-```bash
-PORT=8080 python tictactoe.py
-```
+`compose.yml` sets `PORT=8001`, so the app is served at
+`http://localhost:8001`.
 
 ---
 
 ## Deployment
 
-The project supports two deployment targets. Both use the same `Dockerfile`
-and `compose.yml`; in production the Flask dev server is replaced by
-[Gunicorn](https://gunicorn.org), which is included in `requirements.txt`.
+Both deployment targets use the same multi-stage `Dockerfile`: the first stage
+compiles the TypeScript to `dist/`, the second installs production
+dependencies only and runs `node dist/server.js`.
+
+### Home server
+
+`deploy.sh` (not committed) rsyncs the project to the home server and runs
+`docker compose up --build -d` there. The app is served on port 8001.
 
 ### Fly.io (public)
 
@@ -355,33 +369,32 @@ fly apps create restactoe
 fly deploy
 ```
 
-**Behind a proxy — `ProxyFix`**
+**Behind a proxy — `trust proxy`**
 
 Fly.io terminates TLS at its edge and forwards traffic to the container as
-plain HTTP. Without correction, `request.url_root` would return `http://`
-and all generated move links would be blocked by the browser as mixed
-content. `ProxyFix` in `tictactoe.py` reads the `X-Forwarded-Proto: https`
-header Fly.io injects and rewrites the scheme accordingly. It is harmless in
-environments where that header is absent (plain `python tictactoe.py` or
-`docker compose up` locally).
+plain HTTP. Without correction, `req.protocol` would be `http` and all
+generated move links would be blocked by the browser as mixed content.
+`app.set('trust proxy', true)` in `src/app.ts` makes Express honour the
+`X-Forwarded-Proto: https` header Fly.io injects. It is harmless where that
+header is absent (local runs, `docker compose up`).
 
 ---
 
 ## Testing
 
-Install pytest (included in the virtual environment after `pip install -r requirements.txt` once pytest has been added):
+Tests use [Vitest](https://vitest.dev) and
+[Supertest](https://github.com/ladjs/supertest):
 
 ```bash
-pip install pytest
-python -m pytest tests/ -v
+npm test            # watch mode
+npx vitest run      # single run
 ```
 
-The test suite contains **100 tests** across four files:
+The suite contains **39 tests** across four files:
 
 | File | What it covers |
 |---|---|
-| `tests/test_tictactoe.py` | Core game primitives (`make_move`, `available_moves`, `score`, `other_player`) |
-| `tests/test_utils.py` | All 8 win patterns for `score` and `winning_line`; edge cases for empty/full/won boards; `make_move` immutability |
-| `tests/test_minimax.py` | Tactical move choices; minimax never loses vs random (50 games each as X and O); AI vs AI always draws |
-| `tests/test_random.py` | Random AI always picks a valid empty cell |
-| `tests/test_api.py` | All Flask endpoints; string conversion helpers; HATEOAS link presence/absence; win/draw results; error handling (400s) |
+| `tests/game.test.ts` | Core game primitives (`makeMove`, `availableMoves`, `score`, `winningLine`, `otherPlayer`) |
+| `tests/minimax.test.ts` | Tactical move choices; minimax never loses vs random; AI vs AI always draws |
+| `tests/random.test.ts` | Random AI always picks a valid empty cell |
+| `tests/api.test.ts` | All API endpoints; HATEOAS link presence/absence; win/draw results; error handling (400s) |

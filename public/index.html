@@ -32,7 +32,6 @@
     </section>
 
     <main class="board-wrap" role="main">
-      <!-- responsive svg: use viewBox so it scales; keep defs and board group as before -->
       <svg class="board-svg" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet" aria-label="game board">
         <defs>
             <g id="o-piece">
@@ -70,17 +69,13 @@
         <p id="result_text"></p>
     </result>
 
-
     <footer class="app-footer" aria-hidden="true">
-        <small>Simple single-file UI, with an attempt at something like a true <a href="https://en.wikipedia.org/wiki/HATEOAS">HATEOAS ReST API</a> as a backend.</small>
+        <small>Single-file UI with a true <a href="https://en.wikipedia.org/wiki/HATEOAS">HATEOAS ReST API</a> backend.</small>
     </footer>
 
   </div>
 
-    <script src="static/site.js" type="application/javascript"></script>
+    <script src="static/site.js" type="module"></script>
 
 </body>
 </html>
-
-
-
